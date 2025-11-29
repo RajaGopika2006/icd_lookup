@@ -1,0 +1,1 @@
+Place your Indian medical signs PDF here. The app will extract text from it when you upload via the UI.
