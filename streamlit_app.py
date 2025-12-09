@@ -10,18 +10,19 @@ from sentence_transformers import SentenceTransformer
 import numpy as np
 from numpy.linalg import norm
 import requests
+
 st.set_page_config(
-    page_title="PDF → ICD Chatbot (Streamlit)",
-    layout="wide"
+    page_title="ICD Code Finder Assistant",
+    page_icon="🩺",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # ----------------------- Configuration -----------------------
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")  # set this in your environment
-st.sidebar.write("DEBUG - API key present:", bool(OPENAI_API_KEY))
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 LLM_API_URL = os.getenv(
     "LLM_API_URL", "https://api.openai.com/v1/chat/completions"
 )
-st.sidebar.write("DEBUG - LLM URL:", LLM_API_URL)
 EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "all-MiniLM-L6-v2")
 
 DATA_DIR = "data"
@@ -208,7 +209,7 @@ def query_icd_from_pdf(query, top_k=5):
         chunks_text += f"[Page {c['page']}]\n{c['text']}\n\n"
 
     system_prompt = (
-        "You are an assistant whose only job is to *find explicit ICD codes* "
+        "You are an assistant whose only job is to find explicit ICD codes "
         "inside the provided document sections. "
         "You MUST NOT invent or hallucinate ICD codes. "
         "You MUST only return codes that appear verbatim in the text. "
@@ -274,115 +275,447 @@ def query_icd_from_pdf(query, top_k=5):
     }
 
 
+# ------------------------------- MODERN UI START -------------------------------
+
+# Enhanced CSS styling with gradient backgrounds and modern design
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+    
+    * {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Main container */
+    .main {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 0;
+    }
+    
+    .block-container {
+        padding-top: 3rem;
+        padding-bottom: 3rem;
+        max-width: 1200px;
+    }
+    
+    /* Custom header */
+    .main-header {
+        background: white;
+        padding: 2.5rem;
+        border-radius: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+    
+    .main-header h1 {
+        color: #667eea;
+        font-size: 3rem;
+        font-weight: 700;
+        margin: 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .main-header p {
+        color: #6c757d;
+        font-size: 1.1rem;
+        margin-top: 0.5rem;
+    }
+    
+    /* Card styling */
+    .custom-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+        margin-bottom: 1.5rem;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .custom-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+    }
+    
+    /* Result card */
+    .result-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 15px;
+        margin: 1.5rem 0;
+    }
+    
+    .result-card h3 {
+        margin: 0 0 1rem 0;
+        font-size: 1.5rem;
+    }
+    
+    .result-item {
+        background: rgba(255,255,255,0.1);
+        padding: 1rem;
+        border-radius: 10px;
+        margin: 0.5rem 0;
+        backdrop-filter: blur(10px);
+    }
+    
+    .result-item strong {
+        color: #fff;
+        font-weight: 600;
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    [data-testid="stSidebar"] .element-container {
+        color: white;
+    }
+    
+    [data-testid="stSidebar"] h2 {
+        color: white !important;
+        font-weight: 600;
+    }
+    
+    /* Button styling */
+    .stButton > button {
+        width: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 1rem;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(102,126,234,0.4);
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102,126,234,0.6);
+    }
+    
+    /* Text input styling */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea {
+        border: 2px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 0.75rem;
+        font-size: 1rem;
+        transition: border-color 0.3s;
+    }
+    
+    .stTextInput > div > div > input:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+    }
+    
+    /* Success/Error messages */
+    .stSuccess, .stError, .stWarning, .stInfo {
+        border-radius: 10px;
+        padding: 1rem;
+    }
+    
+    /* Stats box */
+    .stats-box {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+    }
+    
+    .stats-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #667eea;
+        margin: 0;
+    }
+    
+    .stats-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+    }
+    
+    /* Badge styling */
+    .badge {
+        display: inline-block;
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin: 0.25rem;
+    }
+    
+    .badge-success {
+        background: #10b981;
+        color: white;
+    }
+    
+    .badge-warning {
+        background: #f59e0b;
+        color: white;
+    }
+    
+    .badge-info {
+        background: #3b82f6;
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 
-# Sidebar: PDF + corrections
+# Initialize session state
+if "show_correction_form" not in st.session_state:
+    st.session_state["show_correction_form"] = False
+
+
+# ---------------- Sidebar ----------------
 with st.sidebar:
-    st.header("Index PDF")
-    uploaded = st.file_uploader(
-        "Upload Indian medical signs PDF", type=["pdf"]
-    )
-    if uploaded is not None:
-        if st.button("Index uploaded PDF"):
-            data = uploaded.read()
-            with st.spinner("Extracting and indexing..."):
-                local_chunks = extract_pdf_chunks_bytes(data)
-                if not local_chunks:
-                    st.error("No text found in PDF")
-                else:
-                    embs = build_embeddings_for_chunks(local_chunks)
-                    save_chunks_and_embs(local_chunks, embs)
-                    st.success(f"Indexed {len(local_chunks)} chunks")
-
-    if st.button("Clear indexed PDF"):
-        try:
-            if os.path.exists(CHUNKS_PATH):
-                os.remove(CHUNKS_PATH)
-            if os.path.exists(EMBS_PATH):
-                os.remove(EMBS_PATH)
-            st.success("Cleared index")
-        except Exception as e:
-            st.error(str(e))
-
+    st.markdown("### 🩺 ICD Code Finder")
     st.markdown("---")
-    st.header("Corrections")
+    
+    # PDF Status
+    st.markdown("#### 📚 PDF Index Status")
+    if os.path.exists(CHUNKS_PATH) and os.path.exists(EMBS_PATH):
+        st.success("✅ PDF Indexed & Ready")
+        chunks, _ = load_chunks_and_embs()
+        if chunks:
+            st.metric("Total Chunks", len(chunks))
+    else:
+        st.warning("⚠ No PDF indexed")
+        st.info("Click below to index the built-in medical PDF")
+        
+        if st.button("🚀 Index PDF Now", key="index_btn"):
+            with st.spinner("Indexing PDF..."):
+                try:
+                    with open("data/icd_source.pdf", "rb") as f:
+                        data = f.read()
+                    chunks = extract_pdf_chunks_bytes(data)
+                    embs = build_embeddings_for_chunks(chunks)
+                    save_chunks_and_embs(chunks, embs)
+                    st.success("✅ PDF Indexed Successfully!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
+    
+    st.markdown("---")
+    
+    # Corrections Stats
+    st.markdown("#### 📝 Corrections Database")
+    corrections = load_corrections()
+    st.metric("Total Corrections", len(corrections))
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📄 View All", key="view_corr"):
+            st.session_state["show_corrections"] = True
+    with col2:
+        if st.button("🗑 Clear", key="clear_corr"):
+            if os.path.exists(CORRECTIONS_PATH):
+                os.remove(CORRECTIONS_PATH)
+                st.success("Cleared!")
+                st.rerun()
+    
+    st.markdown("---")
+    
+    # System Info
+    st.markdown("#### ⚙ System Status")
+    st.markdown(f"*API Key:* {'🟢 Connected' if OPENAI_API_KEY else '🔴 Missing'}")
+    st.markdown(f"*Embedding Model:* {EMBED_MODEL_NAME}")
+    
+    st.markdown("---")
+    
+    if st.button("🔄 Reset All Data", key="reset_all"):
+        if os.path.exists(CHUNKS_PATH): os.remove(CHUNKS_PATH)
+        if os.path.exists(EMBS_PATH): os.remove(EMBS_PATH)
+        if os.path.exists(CORRECTIONS_PATH): os.remove(CORRECTIONS_PATH)
+        st.success("All data reset!")
+        st.rerun()
 
-    if st.button("Show corrections"):
-        corrs = load_corrections()
-        st.write(corrs)
 
-    if st.button("Clear corrections"):
-        if os.path.exists(CORRECTIONS_PATH):
-            os.remove(CORRECTIONS_PATH)
-            st.success("Cleared corrections")
+# ---------------- Main Page ----------------
+
+# Header
+st.markdown("""
+<div class="main-header">
+    <h1>🩺 ICD Code Finder Assistant</h1>
+    <p>Intelligent medical code lookup </p>
+</div>
+""", unsafe_allow_html=True)
 
 
-# Main area: query + answer
-st.subheader("Ask about symptoms / disease")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# Search Section
+
+st.markdown("### 🔍 Enter Patient Symptoms")
+st.markdown("Describe the symptoms clearly and specifically for best results")
+
 query = st.text_area(
-    "Enter symptoms (e.g. fever, night sweats, chronic cough)", height=120
+    "Symptoms Description",
+    placeholder="Example: Patient presents with persistent dry cough lasting 3 weeks, low-grade fever (38°C), night sweats, and unexplained weight loss of 5kg...",
+    height=150,
+    label_visibility="collapsed"
 )
 
-col1, col2 = st.columns([1, 1])
+col1, col2, col3 = st.columns([2, 1, 2])
 with col1:
-    top_k = st.number_input(
-        "Chunks to search (top_k)", min_value=1, max_value=10, value=5
-    )
-with col2:
-    if st.button("Get ICD"):
-        if not query.strip():
-            st.warning("Type some symptoms or disease description")
-        else:
-            with st.spinner("Searching PDF and consulting LLM..."):
-                res = query_icd_from_pdf(query, top_k=top_k)
-                st.session_state["last_query"] = query
-                st.session_state["last_result"] = res
-                st.rerun()
+    top_k = st.slider("Search Depth", 1, 10, 5, help="Number of document chunks to analyze")
 
+with col3:
+    search_btn = st.button("🔎 Find ICD Code", type="primary", use_container_width=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Search Logic
+if search_btn:
+    if not query.strip():
+        st.warning("⚠ Please enter symptoms first!")
+    else:
+        with st.spinner("🔄 Analyzing symptoms and searching medical database..."):
+            res = query_icd_from_pdf(query, top_k=top_k)
+            st.session_state["last_query"] = query
+            st.session_state["last_result"] = res
+
+# Display Results
 if "last_result" in st.session_state:
     res = st.session_state["last_result"]
-    st.markdown("---")
-
+    
     if res.get("error"):
-        st.error(res["error"])
+        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+        st.error(f"❌ Error: {res['error']}")
         if "raw" in res:
-            st.code(res["raw"][:1000])
+            with st.expander("🔍 View Raw Response"):
+                st.code(res["raw"][:1000], language="text")
+        st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.success("Result")
-        st.json(res)
-
-        st.markdown("**Is this correct?**")
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            if st.button("✅ Yes — correct"):
-                st.success("Thanks for confirming!")
-        with c2:
-            if st.button("❌ No — wrong"):
+        # Success Result
+        st.markdown(f"""
+        <div class="result-card">
+            <h3>✅ ICD Code Found</h3>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            
+            st.markdown("#### 📋 Code Details")
+            
+            if res.get("icd_code"):
+                st.markdown(f"*ICD Code:* {res['icd_code']}")
+            else:
+                st.markdown("*ICD Code:* Not found")
+            
+            if res.get("disease"):
+                st.markdown(f"*Disease:* {res['disease']}")
+            
+            if res.get("page"):
+                st.markdown(f"*Source Page:* {res['page']}")
+            
+            if res.get("from_correction"):
+                st.markdown('<span class="badge badge-info">📝 From Correction Database</span>', unsafe_allow_html=True)
+            else:
+                st.markdown('<span class="badge badge-success">🔍 From PDF Search</span>', unsafe_allow_html=True)
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        
+        
+        # Feedback Section
+        
+        st.markdown("### 💬 Is this result accurate?")
+        
+        col1, col2, col3 = st.columns([1, 1, 2])
+        
+        with col1:
+            if st.button("✅ Yes, Correct", use_container_width=True):
+                st.success("Thank you for confirming! This helps improve our system.")
+        
+        with col2:
+            if st.button("❌ No, Incorrect", use_container_width=True):
                 st.session_state["show_correction_form"] = True
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    if st.session_state.get("show_correction_form"):
-        st.markdown("### Submit correction")
-        corr_icd = st.text_input("Correct ICD code (e.g. A16.2)")
-        corr_notes = st.text_area("Optional notes")
-        if st.button("Submit correction"):
-            last_query = st.session_state.get("last_query", "")
-            q_emb = embed_model.encode(
-                [last_query], convert_to_numpy=True
-            )[0]
-            add_correction(
-                last_query,
-                res.get("icd_code"),
-                corr_icd,
-                notes=corr_notes,
-                embed=q_emb,
-            )
-            st.success(
-                "Correction saved. The system will prefer this answer for similar queries."
-            )
+# Correction Form
+if st.session_state.get("show_correction_form"):
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+    st.markdown("### ✏ Submit Correction")
+    st.markdown("Help us improve by providing the correct ICD code")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        corr_icd = st.text_input("Correct ICD Code", placeholder="e.g., A15.0")
+    
+    with col2:
+        corr_notes = st.text_area("Additional Notes (Optional)", placeholder="Any additional context...", height=100)
+    
+    col1, col2 = st.columns([1, 3])
+    
+    with col1:
+        if st.button("💾 Save Correction", type="primary", use_container_width=True):
+            if corr_icd.strip():
+                last_query = st.session_state["last_query"]
+                q_emb = embed_model.encode([last_query], convert_to_numpy=True)[0]
+                add_correction(
+                    last_query,
+                    res.get("icd_code"),
+                    corr_icd,
+                    notes=corr_notes,
+                    embed=q_emb,
+                )
+                st.success("✅ Correction saved! Future searches will be improved.")
+                st.session_state["show_correction_form"] = False
+                st.rerun()
+            else:
+                st.warning("Please enter a valid ICD code")
+    
+    with col2:
+        if st.button("❌ Cancel", use_container_width=True):
             st.session_state["show_correction_form"] = False
+            st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
-st.markdown("---")
-st.write(
-    "Notes: This app expects the uploaded PDF to contain explicit ICD codes "
-    "in text form. Corrections are stored locally in the `data` folder."
-)
+# View Corrections Modal
+if st.session_state.get("show_corrections"):
+    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
+    st.markdown("### 📝 Saved Corrections")
+    
+    corrections = load_corrections()
+    if corrections:
+        for corr in reversed(corrections[-10:]):  # Show last 10
+            with st.expander(f"#{corr['id']} - {corr['correct_icd']}"):
+                st.markdown(f"*Query:* {corr['query']}")
+                st.markdown(f"*Original:* {corr['original_icd']} → *Corrected:* {corr['correct_icd']}")
+                if corr.get('notes'):
+                    st.markdown(f"*Notes:* {corr['notes']}")
+                st.caption(f"Saved: {corr['timestamp'][:10]}")
+    else:
+        st.info("No corrections saved yet")
+    
+    if st.button("Close", use_container_width=True):
+        st.session_state["show_corrections"] = False
+        st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Footer
+st.markdown("<br><br>", unsafe_allow_html=True)
+st.markdown("""
+<div style="text-align: center; color: white; padding: 2rem;">
+    <p style="margin: 0; font-size: 0.9rem;">🩺 ICD Code Finder Assistant</p>
+    <p style="margin: 0.5rem 0 0 0; font-size: 0.8rem; opacity: 0.8;">Powered by Advanced AI • PDF Indexing • Semantic Search</p>
+</div>
+""", unsafe_allow_html=True)
